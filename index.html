@@ -114,6 +114,34 @@
             .attr("width", (d) => x(d.value))
             .attr("fill", (d) => colorScale(d.value)); // Use the color scale for the fill color
 
+          // 1. Define the Axis
+          let xAxis = d3.axisBottom(x).tickFormat((d) => `${d}`);
+
+          // 2. Add the Axis to SVG
+          svg
+            .append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(xAxis);
+
+          // 3. Add Axis Label
+          svg
+            .append("text")
+            .attr("class", "x label")
+            .attr("text-anchor", "middle")
+            .attr("x", width / 2)
+            .attr("y", height + margin.bottom - 5)
+            .text("Direct Sunlight in Minutes");
+
+          // Update the axis scale
+          x.domain([0, d3.max(dayData, (d) => d.value)]);
+
+          // Update the axis
+          svg
+            .selectAll(".x.axis")
+            .transition() // Use transition for smooth update
+            .call(d3.axisBottom(x).tickFormat((d) => `${d}`));
+
           // Update the label groups
           const labelGroups = svg
             .selectAll(".label-group")

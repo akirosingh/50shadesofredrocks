@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Bar Chart with D3.js</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+      /* Full width slider */
+      #daySlider {
+        width: 100%;
+        -webkit-appearance: none; /* Override default CSS styles */
+        appearance: none;
+        height: 15px;
+        background: #ddd; /* Background color */
+        outline: none; /* Remove outline */
+        opacity: 0.7; /* Set transparency (cross-browser) */
+        -webkit-transition: 0.2s; /* 0.2 seconds transition on hover */
+        transition: opacity 0.2s;
+      }
+
+      /* Mouse-over effects */
+      #daySlider:hover {
+        opacity: 1; /* Fully opaque on hover */
+      }
+
+      /* Slider Thumb */
+      #daySlider::-webkit-slider-thumb {
+        -webkit-appearance: none; /* Override default look */
+        appearance: none;
+        width: 25px; /* Set a specific slider handle width */
+        height: 25px; /* Slider handle height */
+        background: #721d05; /* Slider handle color (dark red) */
+        cursor: pointer; /* Cursor on hover */
+      }
+
+      #daySlider::-moz-range-thumb {
+        width: 25px; /* Width of the slider */
+        height: 25px; /* Height of the slider */
+        background: #721d05; /* Background color of the slider */
+        cursor: pointer; /* Cursor type on hover */
+      }
+
+      /* Date display styling */
+      #dateDisplay {
+        display: block; /* Make the span a block element */
+        text-align: center; /* Center the text */
+        margin-bottom: 10px; /* Margin below the date display */
+        font-size: 20px; /* Increase the font size */
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Slider input for selecting the day -->
+    <input type="range" id="daySlider" min="1" max="365" value="1" />
+    <span id="dateDisplay">January 1st</span>
+    <!-- Date display -->
+
+    <!-- Container for the bar chart -->
+    <div id="chart"></div>
+
+    <script>
+      // Set the dimensions for the chart
+      let margin = { top: 20, right: 30, bottom: 40, left: 200 };
+      let width = window.innerWidth - margin.left - margin.right;
+      let height = 2000 - margin.top - margin.bottom;
+
+      let svg = d3
+        .select("#chart")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      let y = d3.scaleBand().range([height, 0]).padding(0.1);
+      let x = d3.scaleLinear().range([0, width]);
+
+      let currentDay = 1; // Store the current day outside the function
+
+      // Load the JSON data
+      d3.json("redrockscrags.json").then(function (data) {
+        // Function to update the chart
+        function updateChart(dayIndex) {
+          currentDay = dayIndex;
+          // Process the data to get the values for the selected day
+          const dayData = data
+            .map((crag) => ({
+              area: crag.areas,
+              value: crag[`Day_${dayIndex}`],
+              href: crag["areas-href"],
+            }))
+            .sort((a, b) => b.value - a.value); // This will sort the array in descending order of sunlight minutes
+
+          y.domain(dayData.map((d) => d.area));
+          x.domain([0, d3.max(dayData, (d) => d.value)]);
+
+          const colorScale = d3
+            .scaleLinear()
+            .domain([
+              d3.min(dayData, (d) => d.value),
+              d3.max(dayData, (d) => d.value),
+            ])
+            .range(["#ffd2aa", "#721d05"]); // Lightest to darkest red
+
+          // Select all bars on the graph, take them out, and exit the previous data set.
+          // Enter the new data and append the rectangles for each bar
+          svg
+            .selectAll(".bar")
+            .data(dayData, (d) => d.area)
+            .join("rect")
+            .attr("class", "bar")
+            .attr("y", (d) => y(d.area))
+            .attr("height", y.bandwidth())
+            .transition()
+            .attr("width", (d) => x(d.value))
+            .attr("fill", (d) => colorScale(d.value)); // Use the color scale for the fill color
+
+          // Update the label groups
+          const labelGroups = svg
+            .selectAll(".label-group")
+            .data(dayData, (d) => d.area);
+
+          // Enter + update
+          labelGroups.join(
+            (enter) =>
+              enter
+                .append("g")
+                .attr("class", "label-group")
+                .attr("transform", (d) => `translate(0, ${y(d.area)})`) // Set the initial position
+                .call((g) =>
+                  g
+                    .append("a")
+                    .attr("class", "label")
+                    .attr("href", (d) => d.href)
+                    .attr("target", "_blank")
+                    .append("text")
+                    .attr("y", y.bandwidth() / 2)
+                    .attr("x", -5)
+                    .attr("dy", "0.35em")
+                    .attr("text-anchor", "end")
+                    .style("pointer-events", "all")
+                    .style("fill", "black")
+                    .text((d) => d.area)
+                ),
+            (update) =>
+              update.call(
+                (g) =>
+                  g
+                    .transition() // Add transition for smooth update
+                    .attr("transform", (d) => `translate(0, ${y(d.area)})`)
+                    .select("a.label")
+                    .attr("href", (d) => d.href) // Update the href in case it changed
+                    .select("text")
+                    .text((d) => d.area) // Update the text in case it changed
+              ),
+            (exit) => exit.remove()
+          );
+        }
+
+        // Initialize the chart with Day 1 data
+        updateChart(currentDay);
+
+        // Function to convert day of the year to a date
+        function dayOfYearToDate(day, year) {
+          var date = new Date(year, 0); // Start at January 1st
+          date.setDate(day); // Set the day of the year
+          return date;
+        }
+
+        // Function to format the date
+        function formatDate(date) {
+          var options = { month: "long", day: "numeric" };
+          return date.toLocaleDateString("en-US", options);
+        }
+
+        // Update chart and date display function
+        function update(dayIndex) {
+          updateChart(dayIndex);
+
+          var date = dayOfYearToDate(dayIndex, 2023); // Assuming the year is 2023
+          document.getElementById("dateDisplay").textContent = formatDate(date);
+        }
+
+        // Single Event listener for the slider
+        d3.select("#daySlider").on("input", function (event) {
+          update(event.target.value);
+        });
+
+        // Initialize with Day 1
+        update(1);
+
+        function updateSize() {
+          width = window.innerWidth - margin.left - margin.right;
+          svg.attr("width", width + margin.left + margin.right);
+          x.range([0, width]);
+          updateChart(currentDay);
+        }
+
+        // Resize event listener
+        window.addEventListener("resize", updateSize);
+      });
+    </script>
+  </body>
+</html>
